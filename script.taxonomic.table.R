@@ -15,7 +15,7 @@ species <- c("Pilumnoides perlatus", "Pachycheles grossimanus", "Halicarcinus pl
              "Carditella tegulata", "Aulacomya atra", "Argopecten purpuratus", "Salitra radwini", "Tricolia umbilicata", 
              "Crassilabrum crassilabrum", "Mitrella unifasciata", "Incatella cingulata", "Caecum chilense", 
              "Nodilittorina araucana", "Crepidula dilatata", "Nassarius gayii", "Liotia cancellata", "Prisogaster niger", 
-             "Tegula", "Fissurella", "Concholepas concholepas", "Cerithidae", 
+             "Tegula", "Fissurella", "Concholepas concholepas", "Cerithiidae", 
              "Siphonaria lessoni", "Triphoridae", "Xanthochorus cassidiformis", "Stichaster striatus", 
              "Tetrapygus niger", "Loxechinus albus", "Ophioplus")
 length(species)
@@ -26,7 +26,7 @@ species <-sort(species)#sort by alphabetical names
 gnr_resolve(names=species)# see all chances and choose data sources ids
 gnr_datasources()#see data sources for resolve 
 
-#retrieve sp names (by data source 8 & 168)
+#retrieve sp names (by data source 8 & 168) A. purpuratus [Cnidaria???!!!]
 temp <- gnr_resolve(names=species, best_match_only=TRUE, data_source_ids = c(8))#8 == Interim Register of Marine and Nonmarine data base
 # match(species, temp$submitted_name)
 mtch<-species %in% temp$submitted_name
@@ -40,59 +40,70 @@ temp1 <- gnr_resolve(names=sp_lost, best_match_only=TRUE, data_source_ids = c(16
 sp_list<-arrange(rbind(temp, temp1), user_supplied_name)
 
 
-#Retrieve a list classification for species names 
-# Use gbif interactive data base
+# Retrieve a list of high classification for species names 
+# Use gbif & eol interactive data base
 # clatx<-classification(species, db = 'gbif')
-clatx<-classification(sp_list$submitted_name, db = 'gbif')
-str(clatx)
+clatx <- classification(sp_list$submitted_name[-1], db = 'gbif')
 
-# classification(species, db = 'ncbi')
-# classification(species, db = 'itis')
-# classification(species, db = 'eol')
-# classification(species, db = 'col')
-# classification(species, db = 'tropicos')
-# classification(species, db = 'nbn')
+#Workaround for miss classified A. purpuratus on gbif db (show as antozoa!!)
+clatx1 <-classification(sp_list$submitted_name[1], db = 'eol')#retrieve classification from eol db choose 3
 
-taxi<-do.call(rbind.data.frame, clatx)#manipulate sp taxonomy convert to data frame from rows
+#set to 9 rownames object
+# clatx1 <- list(`Argopecten purpuratus`=na.omit(clatx1$`Argopecten purpuratus`))#omit NA
+# clatx1 <- list(`Argopecten purpuratus`=clatx1$`Argopecten purpuratus`[-1,])#delete superkingdom, subclass, superfamily
+# row.names(clatx1$`Argopecten purpuratus`) <- seq(1,9,1)#reset rownames number
+
+clatx2 <- c(clatx, clatx1)
+
+#manipulate sp taxonomy convert to data frame from rows
+taxi<-do.call(rbind.data.frame, clatx2)
 taxi$sp<-rownames(taxi)
+taxi
+# dcast(taxi, sp ~ rank)
 
-dcast(taxi, sp ~ rank)
-
-taxi$sp.group <-substr(taxi$sp, 1, nchar(taxi$sp)-2)# create column sp.group para agrupar 
+# make column sp.group for aggregate & delette last two characters
+taxi$sp.group <-substr(taxi$sp, 1, nchar(taxi$sp)-2)
+taxi
 # FACTOR LEVELS for rank variable
 taxi$rank <- factor(taxi$rank,
                     levels=c("kingdom",
                              "phylum",
                              "class", 
-                             "order",
+                             "order", "superfamily",
                              "family", 
                              "genus",
                              "species"),
                     labels=c("kingdom",
                              "phylum",
                              "class", 
-                             "order",
+                             "order","superfamily",
                              "family", 
                              "genus",
                              "species"))
+
+taxi
+
+# taxonomy<-arrange(dcast(taxi, sp.group ~ rank, value.var = "name"), phylum, class, family)
+
 
 taxonomy<-arrange(dcast(taxi, sp.group ~ rank, value.var = "name"), sp.group)#phylum, class, family
 
 #Combine by sp_list authority
 tax_table <- cbind(taxonomy, "matched_name"=sp_list$matched_name)
+names(tax_table)
 
 #Select columns
-tax <- arrange(tax_table[,c(3,4,6,7,9)],phylum, class, family)
+tax <- arrange(tax_table[,c(3,4,5,7,8,10)],phylum, class, family)
 
 ## Escribe tabla taxonomia a archivo excel 
 frame.6 <- c("tax")
 name.pestaña <- c("structure")
 WriteXLS(frame.6, 
-         ExcelFileName = file.path(campaña.IMG.dir,
+         ExcelFileName = file.path(campaña.FILE.dir,
                                    paste("Taxonomy_Anglo_", format(Sys.time(), "%Y_%m_%d"), 
                                          ".xls", sep = "")), 
          SheetNames = name.pestaña, verbose=TRUE, AdjWidth = TRUE, BoldHeaderRow = TRUE,
-         Encoding = "latin1")
+         Encoding = "UTF-8")
 
 
 
